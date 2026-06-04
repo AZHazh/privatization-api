@@ -4440,6 +4440,9 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	}
 
 	if account != nil && account.IsAnthropicAPIKeyPassthroughEnabled() {
+		if err := checkSettlementLeaseForGateway(ctx, c, s.cfg); err != nil {
+			return nil, err
+		}
 		passthroughBody := parsed.Body.Bytes()
 		passthroughModel := parsed.Model
 		if passthroughModel != "" {
@@ -4460,6 +4463,9 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	}
 
 	if account != nil && account.IsBedrock() {
+		if err := checkSettlementLeaseForGateway(ctx, c, s.cfg); err != nil {
+			return nil, err
+		}
 		return s.forwardBedrock(ctx, c, account, parsed, startTime)
 	}
 
@@ -4615,6 +4621,10 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		if err := replaceBody(injectAnthropicCacheControlTTL1h(body)); err != nil {
 			return nil, err
 		}
+	}
+
+	if err := checkSettlementLeaseForGateway(ctx, c, s.cfg); err != nil {
+		return nil, err
 	}
 
 	// 获取凭证
@@ -8910,6 +8920,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
+		enqueueSettlementUsage(ctx, s.cfg, usageLog, account)
 		logger.LegacyPrintf("service.gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
 		return nil
@@ -8940,6 +8951,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		return billingErr
 	}
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
+	enqueueSettlementUsage(ctx, s.cfg, usageLog, account)
 
 	return nil
 }

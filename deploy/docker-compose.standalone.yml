@@ -96,6 +96,21 @@ services:
       - ANTIGRAVITY_USER_AGENT_VERSION=${ANTIGRAVITY_USER_AGENT_VERSION:-}
 
       # =======================================================================
+      # Settlement Reporting (Optional)
+      # =======================================================================
+      - SETTLEMENT_ENABLED=${SETTLEMENT_ENABLED:-true}
+      - SETTLEMENT_CENTER_URL=${SETTLEMENT_CENTER_URL:-}
+      - SETTLEMENT_SITE_ID=${SETTLEMENT_SITE_ID:-}
+      - SETTLEMENT_SECRET=${SETTLEMENT_SECRET:-}
+      - SETTLEMENT_LEASE_REQUIRED=${SETTLEMENT_LEASE_REQUIRED:-false}
+      - SETTLEMENT_FAIL_OPEN=${SETTLEMENT_FAIL_OPEN:-false}
+      - SETTLEMENT_BATCH_SIZE=${SETTLEMENT_BATCH_SIZE:-200}
+      - SETTLEMENT_FLUSH_INTERVAL_SECONDS=${SETTLEMENT_FLUSH_INTERVAL_SECONDS:-10}
+      - SETTLEMENT_TIMEOUT_SECONDS=${SETTLEMENT_TIMEOUT_SECONDS:-10}
+      - SETTLEMENT_MAX_QUEUE_SIZE=${SETTLEMENT_MAX_QUEUE_SIZE:-10000}
+      - SETTLEMENT_LEASE_RENEW_THRESHOLD_USD=${SETTLEMENT_LEASE_RENEW_THRESHOLD_USD:-0.5}
+
+      # =======================================================================
       # Image Generation Stream & Concurrency
       # =======================================================================
       # OpenAI HTTP upstream protocol/timeout

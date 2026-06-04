@@ -64,6 +64,7 @@ type Config struct {
 	CORS                    CORSConfig                    `mapstructure:"cors"`
 	Security                SecurityConfig                `mapstructure:"security"`
 	Billing                 BillingConfig                 `mapstructure:"billing"`
+	Settlement              SettlementConfig              `mapstructure:"settlement"`
 	Turnstile               TurnstileConfig               `mapstructure:"turnstile"`
 	Database                DatabaseConfig                `mapstructure:"database"`
 	Redis                   RedisConfig                   `mapstructure:"redis"`
@@ -147,6 +148,20 @@ type GeminiTierQuotaConfig struct {
 	ProRPD          *int64 `mapstructure:"pro_rpd" json:"pro_rpd"`
 	FlashRPD        *int64 `mapstructure:"flash_rpd" json:"flash_rpd"`
 	CooldownMinutes *int   `mapstructure:"cooldown_minutes" json:"cooldown_minutes"`
+}
+
+type SettlementConfig struct {
+	Enabled              bool    `mapstructure:"enabled"`
+	CenterURL            string  `mapstructure:"center_url"`
+	SiteID               string  `mapstructure:"site_id"`
+	Secret               string  `mapstructure:"secret"`
+	LeaseRequired        bool    `mapstructure:"lease_required"`
+	FailOpen             bool    `mapstructure:"fail_open"`
+	BatchSize            int     `mapstructure:"batch_size"`
+	FlushIntervalSeconds int     `mapstructure:"flush_interval_seconds"`
+	TimeoutSeconds       int     `mapstructure:"timeout_seconds"`
+	MaxQueueSize         int     `mapstructure:"max_queue_size"`
+	LeaseRenewThreshold  float64 `mapstructure:"lease_renew_threshold_usd"`
 }
 
 type UpdateConfig struct {
@@ -1589,6 +1604,19 @@ func setDefaults() {
 	viper.SetDefault("billing.user_platform_quota_cache_ttl_seconds", 86400)
 	viper.SetDefault("billing.user_platform_quota_sentinel_ttl_seconds", 3600)
 
+	// Settlement
+	viper.SetDefault("settlement.enabled", false)
+	viper.SetDefault("settlement.center_url", "")
+	viper.SetDefault("settlement.site_id", "")
+	viper.SetDefault("settlement.secret", "")
+	viper.SetDefault("settlement.lease_required", false)
+	viper.SetDefault("settlement.fail_open", false)
+	viper.SetDefault("settlement.batch_size", 200)
+	viper.SetDefault("settlement.flush_interval_seconds", 10)
+	viper.SetDefault("settlement.timeout_seconds", 10)
+	viper.SetDefault("settlement.max_queue_size", 10000)
+	viper.SetDefault("settlement.lease_renew_threshold_usd", 0.5)
+
 	// Turnstile
 	viper.SetDefault("turnstile.required", false)
 
@@ -2244,6 +2272,56 @@ func (c *Config) Validate() error {
 		}
 		if c.Billing.CircuitBreaker.HalfOpenRequests <= 0 {
 			return fmt.Errorf("billing.circuit_breaker.half_open_requests must be positive")
+		}
+	}
+	settlementCenterURL := strings.TrimSpace(c.Settlement.CenterURL)
+	settlementSiteID := strings.TrimSpace(c.Settlement.SiteID)
+	settlementSecret := strings.TrimSpace(c.Settlement.Secret)
+	settlementConfigured := settlementCenterURL != "" && settlementSiteID != "" && settlementSecret != ""
+	if c.Settlement.Enabled {
+		if settlementCenterURL != "" {
+			if err := ValidateAbsoluteHTTPURL(c.Settlement.CenterURL); err != nil {
+				return fmt.Errorf("settlement.center_url invalid: %w", err)
+			}
+		}
+		if c.Settlement.LeaseRequired && !settlementConfigured {
+			return fmt.Errorf("settlement.center_url, settlement.site_id and settlement.secret are required when settlement.lease_required=true")
+		}
+		if c.Settlement.BatchSize <= 0 {
+			return fmt.Errorf("settlement.batch_size must be positive")
+		}
+		if c.Settlement.FlushIntervalSeconds <= 0 {
+			return fmt.Errorf("settlement.flush_interval_seconds must be positive")
+		}
+		if c.Settlement.TimeoutSeconds <= 0 {
+			return fmt.Errorf("settlement.timeout_seconds must be positive")
+		}
+		if c.Settlement.MaxQueueSize <= 0 {
+			return fmt.Errorf("settlement.max_queue_size must be positive")
+		}
+		if c.Settlement.LeaseRenewThreshold < 0 {
+			return fmt.Errorf("settlement.lease_renew_threshold_usd must be non-negative")
+		}
+		if settlementConfigured {
+			warnIfInsecureURL("settlement.center_url", c.Settlement.CenterURL)
+		} else {
+			slog.Warn("settlement.enabled=true but center_url/site_id/secret is incomplete; settlement reporting will stay inactive until configured.")
+		}
+	} else {
+		if c.Settlement.BatchSize < 0 {
+			return fmt.Errorf("settlement.batch_size must be non-negative")
+		}
+		if c.Settlement.FlushIntervalSeconds < 0 {
+			return fmt.Errorf("settlement.flush_interval_seconds must be non-negative")
+		}
+		if c.Settlement.TimeoutSeconds < 0 {
+			return fmt.Errorf("settlement.timeout_seconds must be non-negative")
+		}
+		if c.Settlement.MaxQueueSize < 0 {
+			return fmt.Errorf("settlement.max_queue_size must be non-negative")
+		}
+		if c.Settlement.LeaseRenewThreshold < 0 {
+			return fmt.Errorf("settlement.lease_renew_threshold_usd must be non-negative")
 		}
 	}
 	if c.Database.MaxOpenConns <= 0 {
