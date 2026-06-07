@@ -13,6 +13,7 @@ type User struct {
 	Email         string     `json:"email"`
 	Username      string     `json:"username"`
 	Role          string     `json:"role"`
+	OperatorPages []string   `json:"operator_pages,omitempty"`
 	Balance       float64    `json:"balance"`
 	Concurrency   int        `json:"concurrency"`
 	Status        string     `json:"status"`

@@ -37,6 +37,10 @@ type AdminService interface {
 	CreateUser(ctx context.Context, input *CreateUserInput) (*User, error)
 	UpdateUser(ctx context.Context, id int64, input *UpdateUserInput) (*User, error)
 	DeleteUser(ctx context.Context, id int64) error
+	ListAdminAccounts(ctx context.Context, page, pageSize int, filters UserListFilters, sortBy, sortOrder string) ([]User, int64, error)
+	CreateAdminAccount(ctx context.Context, input *CreateAdminAccountInput) (*User, error)
+	UpdateAdminAccount(ctx context.Context, id int64, input *UpdateAdminAccountInput) (*User, error)
+	DeleteAdminAccount(ctx context.Context, id int64) error
 	UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*User, error)
 	BatchUpdateConcurrency(ctx context.Context, userIDs []int64, value int, mode string) (int, error)
 	GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]APIKey, int64, error)
@@ -133,6 +137,26 @@ type CreateUserInput struct {
 	Concurrency   int
 	RPMLimit      int
 	AllowedGroups []int64
+}
+
+type CreateAdminAccountInput struct {
+	Email         string
+	Password      string
+	Username      string
+	Notes         string
+	Role          string
+	OperatorPages []string
+	Status        string
+}
+
+type UpdateAdminAccountInput struct {
+	Email         string
+	Password      string
+	Username      *string
+	Notes         *string
+	Role          string
+	Status        string
+	OperatorPages *[]string
 }
 
 type UpdateUserInput struct {
@@ -638,6 +662,11 @@ func (s *adminServiceImpl) ListUsers(ctx context.Context, page, pageSize int, fi
 	return users, result.Total, nil
 }
 
+func (s *adminServiceImpl) ListAdminAccounts(ctx context.Context, page, pageSize int, filters UserListFilters, sortBy, sortOrder string) ([]User, int64, error) {
+	filters.Roles = []string{RoleAdmin, RoleOperator}
+	return s.ListUsers(ctx, page, pageSize, filters, sortBy, sortOrder)
+}
+
 func (s *adminServiceImpl) loadUserGroupRatesOneByOne(ctx context.Context, users []User) {
 	if s.userGroupRateRepo == nil {
 		return
@@ -705,6 +734,48 @@ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInpu
 		return nil, err
 	}
 	s.assignDefaultSubscriptions(ctx, user.ID)
+	return user, nil
+}
+
+func (s *adminServiceImpl) CreateAdminAccount(ctx context.Context, input *CreateAdminAccountInput) (*User, error) {
+	role := strings.TrimSpace(input.Role)
+	if role == "" {
+		role = RoleOperator
+	}
+	if role != RoleAdmin && role != RoleOperator {
+		return nil, fmt.Errorf("role must be admin or operator")
+	}
+
+	status := strings.TrimSpace(input.Status)
+	if status == "" {
+		status = StatusActive
+	}
+	if status != StatusActive && status != StatusDisabled {
+		return nil, fmt.Errorf("status must be active or disabled")
+	}
+	if role == RoleAdmin && status == StatusDisabled {
+		return nil, errors.New("cannot disable admin user")
+	}
+
+	user := &User{
+		Email:         input.Email,
+		Username:      input.Username,
+		Notes:         input.Notes,
+		Role:          role,
+		OperatorPages: cleanOperatorPages(input.OperatorPages),
+		Balance:       0,
+		Concurrency:   0,
+		Status:        status,
+	}
+	if role == RoleAdmin {
+		user.OperatorPages = nil
+	}
+	if err := user.SetPassword(input.Password); err != nil {
+		return nil, err
+	}
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return nil, err
+	}
 	return user, nil
 }
 
@@ -825,6 +896,68 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 	return user, nil
 }
 
+func (s *adminServiceImpl) UpdateAdminAccount(ctx context.Context, id int64, input *UpdateAdminAccountInput) (*User, error) {
+	user, err := s.userRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if user.Role != RoleAdmin && user.Role != RoleOperator {
+		return nil, errors.New("target user is not an admin account")
+	}
+
+	oldRole := user.Role
+	oldStatus := user.Status
+	oldPages := strings.Join(cleanOperatorPages(user.OperatorPages), "\x00")
+
+	if input.Email != "" {
+		user.Email = input.Email
+	}
+	if input.Password != "" {
+		if err := user.SetPassword(input.Password); err != nil {
+			return nil, err
+		}
+	}
+	if input.Username != nil {
+		user.Username = *input.Username
+	}
+	if input.Notes != nil {
+		user.Notes = *input.Notes
+	}
+	if input.Role != "" {
+		if input.Role != RoleAdmin && input.Role != RoleOperator {
+			return nil, fmt.Errorf("role must be admin or operator")
+		}
+		user.Role = input.Role
+	}
+	if input.Status != "" {
+		if input.Status != StatusActive && input.Status != StatusDisabled {
+			return nil, fmt.Errorf("status must be active or disabled")
+		}
+		user.Status = input.Status
+	}
+	if user.Role == RoleAdmin && user.Status == StatusDisabled {
+		return nil, errors.New("cannot disable admin user")
+	}
+	if user.Role == RoleOperator {
+		if input.OperatorPages != nil {
+			user.OperatorPages = cleanOperatorPages(*input.OperatorPages)
+		}
+	} else {
+		user.OperatorPages = nil
+	}
+
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return nil, err
+	}
+	if s.authCacheInvalidator != nil {
+		newPages := strings.Join(cleanOperatorPages(user.OperatorPages), "\x00")
+		if user.Role != oldRole || user.Status != oldStatus || newPages != oldPages || input.Password != "" {
+			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, user.ID)
+		}
+	}
+	return user, nil
+}
+
 func (s *adminServiceImpl) DeleteUser(ctx context.Context, id int64) error {
 	// Protect admin users: cannot delete admin accounts
 	user, err := s.userRepo.GetByID(ctx, id)
@@ -842,6 +975,76 @@ func (s *adminServiceImpl) DeleteUser(ctx context.Context, id int64) error {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, id)
 	}
 	return nil
+}
+
+func (s *adminServiceImpl) DeleteAdminAccount(ctx context.Context, id int64) error {
+	user, err := s.userRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if user.Role == RoleAdmin {
+		return errors.New("cannot delete admin user")
+	}
+	if user.Role != RoleOperator {
+		return errors.New("target user is not an admin account")
+	}
+	if err := s.userRepo.Delete(ctx, id); err != nil {
+		logger.LegacyPrintf("service.admin", "delete admin account failed: user_id=%d err=%v", id, err)
+		return err
+	}
+	if s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, id)
+	}
+	return nil
+}
+
+func cleanOperatorPages(pages []string) []string {
+	if len(pages) == 0 {
+		return []string{}
+	}
+	seen := make(map[string]struct{}, len(pages))
+	out := make([]string, 0, len(pages))
+	for _, page := range pages {
+		page = strings.TrimSpace(page)
+		if page == "" {
+			continue
+		}
+		if !validOperatorPage(page) {
+			continue
+		}
+		if _, ok := seen[page]; ok {
+			continue
+		}
+		seen[page] = struct{}{}
+		out = append(out, page)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func validOperatorPage(page string) bool {
+	switch page {
+	case "dashboard",
+		"ops",
+		"users",
+		"groups",
+		"channels_pricing",
+		"channels_monitor",
+		"subscriptions",
+		"accounts",
+		"announcements",
+		"proxies",
+		"risk_control",
+		"redeem",
+		"promo_codes",
+		"affiliates",
+		"orders",
+		"usage",
+		"settings":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *adminServiceImpl) BatchUpdateConcurrency(ctx context.Context, userIDs []int64, value int, mode string) (int, error) {

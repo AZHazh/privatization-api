@@ -58,6 +58,16 @@ type CreateUserRequest struct {
 	AllowedGroups []int64  `json:"allowed_groups"`
 }
 
+type CreateAdminAccountRequest struct {
+	Email         string   `json:"email" binding:"required,email"`
+	Password      string   `json:"password" binding:"required,min=6"`
+	Username      string   `json:"username"`
+	Notes         string   `json:"notes"`
+	Role          string   `json:"role" binding:"omitempty,oneof=admin operator"`
+	OperatorPages []string `json:"operator_pages"`
+	Status        string   `json:"status" binding:"omitempty,oneof=active disabled"`
+}
+
 // UpdateUserRequest represents admin update user request
 // 使用指针类型来区分"未提供"和"设置为0"
 type UpdateUserRequest struct {
@@ -73,6 +83,16 @@ type UpdateUserRequest struct {
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]*rate，nil 表示删除该分组的专属倍率
 	GroupRates map[int64]*float64 `json:"group_rates"`
+}
+
+type UpdateAdminAccountRequest struct {
+	Email         string    `json:"email" binding:"omitempty,email"`
+	Password      string    `json:"password" binding:"omitempty,min=6"`
+	Username      *string   `json:"username"`
+	Notes         *string   `json:"notes"`
+	Role          string    `json:"role" binding:"omitempty,oneof=admin operator"`
+	Status        string    `json:"status" binding:"omitempty,oneof=active disabled"`
+	OperatorPages *[]string `json:"operator_pages"`
 }
 
 // UpdateBalanceRequest represents balance update request
@@ -184,6 +204,144 @@ func parseAttributeFilters(c *gin.Context) map[int64]string {
 	}
 
 	return result
+}
+
+// ListAdminAccounts handles listing admin/operator accounts.
+// GET /api/v1/admin/admin-accounts
+func (h *UserHandler) ListAdminAccounts(c *gin.Context) {
+	page, pageSize := response.ParsePagination(c)
+
+	search := strings.TrimSpace(c.Query("search"))
+	if runes := []rune(search); len(runes) > 100 {
+		search = string(runes[:100])
+	}
+
+	filters := service.UserListFilters{
+		Status: c.Query("status"),
+		Role:   c.Query("role"),
+		Search: search,
+	}
+	if createdFrom, ok := parseDateTimeQuery(c.Query("created_from")); ok {
+		filters.CreatedFrom = &createdFrom
+	}
+	if createdTo, ok := parseDateTimeQuery(c.Query("created_to")); ok {
+		if isDateOnlyQuery(c.Query("created_to")) {
+			createdTo = createdTo.AddDate(0, 0, 1).Add(-time.Nanosecond)
+		}
+		filters.CreatedTo = &createdTo
+	}
+	sortBy := c.DefaultQuery("sort_by", "created_at")
+	sortOrder := c.DefaultQuery("sort_order", "desc")
+
+	users, total, err := h.adminService.ListAdminAccounts(c.Request.Context(), page, pageSize, filters, sortBy, sortOrder)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	out := make([]*dto.AdminUser, 0, len(users))
+	for i := range users {
+		out = append(out, dto.UserFromServiceAdmin(&users[i]))
+	}
+	response.Paginated(c, out, total, page, pageSize)
+}
+
+// CreateAdminAccount handles creating an admin/operator account.
+// POST /api/v1/admin/admin-accounts
+func (h *UserHandler) CreateAdminAccount(c *gin.Context) {
+	var req CreateAdminAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	user, err := h.adminService.CreateAdminAccount(c.Request.Context(), &service.CreateAdminAccountInput{
+		Email:         req.Email,
+		Password:      req.Password,
+		Username:      req.Username,
+		Notes:         req.Notes,
+		Role:          req.Role,
+		OperatorPages: req.OperatorPages,
+		Status:        req.Status,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.UserFromServiceAdmin(user))
+}
+
+// UpdateAdminAccount handles updating an admin/operator account.
+// PUT /api/v1/admin/admin-accounts/:id
+func (h *UserHandler) UpdateAdminAccount(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID")
+		return
+	}
+
+	var req UpdateAdminAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	user, err := h.adminService.UpdateAdminAccount(c.Request.Context(), userID, &service.UpdateAdminAccountInput{
+		Email:         req.Email,
+		Password:      req.Password,
+		Username:      req.Username,
+		Notes:         req.Notes,
+		Role:          req.Role,
+		Status:        req.Status,
+		OperatorPages: req.OperatorPages,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.UserFromServiceAdmin(user))
+}
+
+// DeleteAdminAccount handles deleting an operator account.
+// DELETE /api/v1/admin/admin-accounts/:id
+func (h *UserHandler) DeleteAdminAccount(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid user ID")
+		return
+	}
+
+	if err := h.adminService.DeleteAdminAccount(c.Request.Context(), userID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, gin.H{"message": "Admin account deleted"})
+}
+
+func parseDateTimeQuery(raw string) (time.Time, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return time.Time{}, false
+	}
+	if ts, err := time.Parse(time.RFC3339, raw); err == nil {
+		return ts, true
+	}
+	if ts, err := time.Parse("2006-01-02", raw); err == nil {
+		return ts, true
+	}
+	return time.Time{}, false
+}
+
+func isDateOnlyQuery(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if len(raw) != len("2006-01-02") {
+		return false
+	}
+	_, err := time.Parse("2006-01-02", raw)
+	return err == nil
 }
 
 // GetByID handles getting a user by ID

@@ -178,6 +178,27 @@ func (s *stubAdminService) DeleteUser(ctx context.Context, id int64) error {
 	return nil
 }
 
+func (s *stubAdminService) ListAdminAccounts(ctx context.Context, page, pageSize int, filters service.UserListFilters, sortBy, sortOrder string) ([]service.User, int64, error) {
+	return s.ListUsers(ctx, page, pageSize, filters, sortBy, sortOrder)
+}
+
+func (s *stubAdminService) CreateAdminAccount(ctx context.Context, input *service.CreateAdminAccountInput) (*service.User, error) {
+	user := service.User{ID: 101, Email: input.Email, Role: input.Role, OperatorPages: input.OperatorPages, Status: service.StatusActive}
+	return &user, nil
+}
+
+func (s *stubAdminService) UpdateAdminAccount(ctx context.Context, id int64, input *service.UpdateAdminAccountInput) (*service.User, error) {
+	user := service.User{ID: id, Email: input.Email, Role: input.Role, Status: service.StatusActive}
+	if input.OperatorPages != nil {
+		user.OperatorPages = *input.OperatorPages
+	}
+	return &user, nil
+}
+
+func (s *stubAdminService) DeleteAdminAccount(ctx context.Context, id int64) error {
+	return nil
+}
+
 func (s *stubAdminService) UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*service.User, error) {
 	user := service.User{ID: userID, Balance: balance, Status: service.StatusActive}
 	return &user, nil

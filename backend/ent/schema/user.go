@@ -45,6 +45,14 @@ func (User) Fields() []ent.Field {
 			NotEmpty(),
 		field.String("role").
 			MaxLen(20).
+			Validate(func(value string) error {
+				switch value {
+				case domain.RoleAdmin, domain.RoleOperator, domain.RoleUser:
+					return nil
+				default:
+					return fmt.Errorf("must be one of admin, operator, user")
+				}
+			}).
 			Default(domain.RoleUser),
 		field.Float("balance").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).

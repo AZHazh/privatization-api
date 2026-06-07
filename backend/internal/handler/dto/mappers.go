@@ -17,6 +17,7 @@ func UserFromServiceShallow(u *service.User) *User {
 		Email:                      u.Email,
 		Username:                   u.Username,
 		Role:                       u.Role,
+		OperatorPages:              u.OperatorPages,
 		Balance:                    u.Balance,
 		Concurrency:                u.Concurrency,
 		Status:                     u.Status,

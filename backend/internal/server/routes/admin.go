@@ -4,6 +4,7 @@ package routes
 import (
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,6 +23,9 @@ func RegisterAdminRoutes(
 
 		// 用户管理
 		registerUserManagementRoutes(admin, h)
+
+		// 后台账号管理（仅管理员）
+		registerAdminAccountRoutes(admin, h)
 
 		// 分组管理
 		registerGroupRoutes(admin, h)
@@ -97,6 +101,21 @@ func RegisterAdminRoutes(
 
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
+	}
+}
+
+func requireSuperAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, ok := middleware.GetUserRoleFromContext(c)
+		if !ok {
+			middleware.AbortWithError(c, 401, "UNAUTHORIZED", "User not found in context")
+			return
+		}
+		if role != service.RoleAdmin {
+			middleware.AbortWithError(c, 403, "FORBIDDEN", "Admin access required")
+			return
+		}
+		c.Next()
 	}
 }
 
@@ -248,6 +267,17 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// User attribute values
 		users.GET("/:id/attributes", h.Admin.UserAttribute.GetUserAttributes)
 		users.PUT("/:id/attributes", h.Admin.UserAttribute.UpdateUserAttributes)
+	}
+}
+
+func registerAdminAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	accounts := admin.Group("/admin-accounts")
+	accounts.Use(requireSuperAdmin())
+	{
+		accounts.GET("", h.Admin.User.ListAdminAccounts)
+		accounts.POST("", h.Admin.User.CreateAdminAccount)
+		accounts.PUT("/:id", h.Admin.User.UpdateAdminAccount)
+		accounts.DELETE("/:id", h.Admin.User.DeleteAdminAccount)
 	}
 }
 

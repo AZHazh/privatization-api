@@ -103,6 +103,9 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 	if err := r.syncUserAllowedGroupsWithClient(txCtx, txClient, created.ID, userIn.AllowedGroups); err != nil {
 		return err
 	}
+	if err := r.syncOperatorPagesWithExecutor(txCtx, txAwareSQLExecutor(txCtx, r.sql, r.client), created.ID, userIn.OperatorPages); err != nil {
+		return err
+	}
 	if err := ensureEmailAuthIdentityWithClient(txCtx, txClient, created.ID, created.Email, "user_repo_create"); err != nil {
 		return err
 	}
@@ -131,6 +134,11 @@ func (r *userRepository) GetByID(ctx context.Context, id int64) (*service.User, 
 	if v, ok := groups[id]; ok {
 		out.AllowedGroups = v
 	}
+	if pages, err := r.loadOperatorPages(ctx, []int64{id}); err != nil {
+		return nil, err
+	} else if v, ok := pages[id]; ok {
+		out.OperatorPages = v
+	}
 	return out, nil
 }
 
@@ -147,6 +155,11 @@ func (r *userRepository) GetByIDIncludeDeleted(ctx context.Context, id int64) (*
 	}
 	if v, ok := groups[id]; ok {
 		out.AllowedGroups = v
+	}
+	if pages, err := r.loadOperatorPages(ctx, []int64{id}); err != nil {
+		return nil, err
+	} else if v, ok := pages[id]; ok {
+		out.OperatorPages = v
 	}
 	return out, nil
 }
@@ -174,6 +187,11 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*service
 	}
 	if v, ok := groups[m.ID]; ok {
 		out.AllowedGroups = v
+	}
+	if pages, err := r.loadOperatorPages(ctx, []int64{m.ID}); err != nil {
+		return nil, err
+	} else if v, ok := pages[m.ID]; ok {
+		out.OperatorPages = v
 	}
 	return out, nil
 }
@@ -258,6 +276,9 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 	}
 
 	if err := r.syncUserAllowedGroupsWithClient(txCtx, txClient, updated.ID, userIn.AllowedGroups); err != nil {
+		return err
+	}
+	if err := r.syncOperatorPagesWithExecutor(txCtx, txAwareSQLExecutor(txCtx, r.sql, r.client), updated.ID, userIn.OperatorPages); err != nil {
 		return err
 	}
 	if err := replaceEmailAuthIdentityWithClient(txCtx, txClient, updated.ID, oldEmail, updated.Email, "user_repo_update"); err != nil {
@@ -437,6 +458,9 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 	if filters.Role != "" {
 		q = q.Where(dbuser.RoleEQ(filters.Role))
 	}
+	if len(filters.Roles) > 0 {
+		q = q.Where(dbuser.RoleIn(filters.Roles...))
+	}
 	if filters.Search != "" {
 		q = q.Where(
 			dbuser.Or(
@@ -446,6 +470,12 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 				dbuser.HasAPIKeysWith(apikey.KeyContainsFold(filters.Search)),
 			),
 		)
+	}
+	if filters.CreatedFrom != nil {
+		q = q.Where(dbuser.CreatedAtGTE(*filters.CreatedFrom))
+	}
+	if filters.CreatedTo != nil {
+		q = q.Where(dbuser.CreatedAtLTE(*filters.CreatedTo))
 	}
 
 	if filters.GroupName != "" {
@@ -528,6 +558,16 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 	for id, u := range userMap {
 		if groups, ok := allowedGroupsByUser[id]; ok {
 			u.AllowedGroups = groups
+		}
+	}
+
+	operatorPagesByUser, err := r.loadOperatorPages(ctx, userIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	for id, pages := range operatorPagesByUser {
+		if u, ok := userMap[id]; ok {
+			u.OperatorPages = pages
 		}
 	}
 
@@ -898,6 +938,11 @@ func (r *userRepository) GetFirstAdmin(ctx context.Context) (*service.User, erro
 	if v, ok := groups[m.ID]; ok {
 		out.AllowedGroups = v
 	}
+	if pages, err := r.loadOperatorPages(ctx, []int64{m.ID}); err != nil {
+		return nil, err
+	} else if v, ok := pages[m.ID]; ok {
+		out.OperatorPages = v
+	}
 	return out, nil
 }
 
@@ -923,6 +968,82 @@ func (r *userRepository) loadAllowedGroups(ctx context.Context, userIDs []int64)
 	}
 
 	return out, nil
+}
+
+func (r *userRepository) loadOperatorPages(ctx context.Context, userIDs []int64) (map[int64][]string, error) {
+	out := make(map[int64][]string, len(userIDs))
+	if len(userIDs) == 0 {
+		return out, nil
+	}
+
+	exec := txAwareSQLExecutor(ctx, r.sql, r.client)
+	if exec == nil {
+		return out, nil
+	}
+
+	rows, err := exec.QueryContext(ctx, `
+		SELECT user_id, page_key
+		FROM operator_page_permissions
+		WHERE user_id = ANY($1)
+		ORDER BY page_key ASC
+	`, pq.Array(userIDs))
+	if err != nil {
+		if isUndefinedTableError(err) {
+			return out, nil
+		}
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var userID int64
+		var pageKey string
+		if err := rows.Scan(&userID, &pageKey); err != nil {
+			return nil, err
+		}
+		out[userID] = append(out[userID], pageKey)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (r *userRepository) syncOperatorPagesWithExecutor(ctx context.Context, exec sqlQueryExecutor, userID int64, pages []string) error {
+	if exec == nil || userID <= 0 {
+		return nil
+	}
+	if _, err := exec.ExecContext(ctx, `DELETE FROM operator_page_permissions WHERE user_id = $1`, userID); err != nil {
+		if isUndefinedTableError(err) {
+			return nil
+		}
+		return err
+	}
+
+	seen := make(map[string]struct{}, len(pages))
+	for _, page := range pages {
+		page = strings.TrimSpace(page)
+		if page == "" {
+			continue
+		}
+		if _, ok := seen[page]; ok {
+			continue
+		}
+		seen[page] = struct{}{}
+		if _, err := exec.ExecContext(ctx, `
+			INSERT INTO operator_page_permissions (user_id, page_key)
+			VALUES ($1, $2)
+			ON CONFLICT (user_id, page_key) DO NOTHING
+		`, userID, page); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func isUndefinedTableError(err error) bool {
+	var pqErr *pq.Error
+	return errors.As(err, &pqErr) && pqErr.Code == "42P01"
 }
 
 // syncUserAllowedGroupsWithClient 在 ent client/事务内同步用户允许分组：

@@ -150,7 +150,7 @@ func validateAdminAPIKey(
 	return true
 }
 
-// validateJWTForAdmin 验证 JWT 并检查管理员权限
+// validateJWTForAdmin 验证 JWT 并检查后台访问权限
 func validateJWTForAdmin(
 	c *gin.Context,
 	token string,
@@ -187,9 +187,13 @@ func validateJWTForAdmin(
 		return false
 	}
 
-	// 检查管理员权限
-	if !user.IsAdmin() {
+	// 检查后台访问权限
+	if !user.CanAccessAdmin() {
 		AbortWithError(c, 403, "FORBIDDEN", "Admin access required")
+		return false
+	}
+	if !adminRequestAllowedForUser(c.Request.URL.Path, user) {
+		AbortWithError(c, 403, "FORBIDDEN", "Admin page access denied")
 		return false
 	}
 
@@ -201,4 +205,80 @@ func validateJWTForAdmin(
 	c.Set("auth_method", "jwt")
 
 	return true
+}
+
+func adminRequestAllowedForUser(path string, user *service.User) bool {
+	if user == nil {
+		return false
+	}
+	if user.IsAdmin() {
+		return true
+	}
+	if !user.IsOperator() {
+		return false
+	}
+	if strings.HasPrefix(path, "/api/v1/admin/admin-accounts") {
+		return false
+	}
+	for _, page := range user.OperatorPages {
+		if adminPageAllowsPath(page, path) {
+			return true
+		}
+	}
+	return false
+}
+
+func adminPageAllowsPath(page string, path string) bool {
+	page = strings.TrimSpace(page)
+	if page == "" {
+		return false
+	}
+	for _, prefix := range adminPageAPIPrefixes(page) {
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func adminPageAPIPrefixes(page string) []string {
+	const base = "/api/v1/admin"
+	switch page {
+	case "dashboard":
+		return []string{base + "/dashboard"}
+	case "ops":
+		return []string{base + "/ops"}
+	case "users":
+		return []string{base + "/users", base + "/user-attributes", base + "/groups"}
+	case "groups":
+		return []string{base + "/groups", base + "/users", base + "/user-attributes"}
+	case "channels_pricing":
+		return []string{base + "/channels"}
+	case "channels_monitor":
+		return []string{base + "/channel-monitors", base + "/channel-monitor-templates", base + "/accounts", base + "/groups"}
+	case "subscriptions":
+		return []string{base + "/subscriptions", base + "/groups", base + "/users"}
+	case "accounts":
+		return []string{base + "/accounts", base + "/openai", base + "/gemini", base + "/antigravity", base + "/groups", base + "/proxies", base + "/scheduled-test-plans"}
+	case "announcements":
+		return []string{base + "/announcements", base + "/groups", base + "/user-attributes"}
+	case "proxies":
+		return []string{base + "/proxies"}
+	case "risk_control":
+		return []string{base + "/risk-control"}
+	case "redeem":
+		return []string{base + "/redeem-codes", base + "/groups", base + "/users"}
+	case "promo_codes":
+		return []string{base + "/promo-codes"}
+	case "affiliates":
+		return []string{base + "/affiliates"}
+	case "orders":
+		return []string{base + "/payment"}
+	case "usage":
+		return []string{base + "/usage"}
+	case "settings":
+		return []string{base + "/settings", base + "/data-management", base + "/backups", base + "/system", base + "/api-keys", base + "/error-passthrough-rules", base + "/tls-fingerprint-profiles"}
+	default:
+		return nil
+	}
 }

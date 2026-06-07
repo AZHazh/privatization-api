@@ -67,7 +67,10 @@ var (
 type UserListFilters struct {
 	Status     string           // User status filter
 	Role       string           // User role filter
+	Roles      []string         // User role allow-list filter
 	Search     string           // Search in email, username
+	CreatedFrom *time.Time      // Created-at lower bound
+	CreatedTo   *time.Time      // Created-at upper bound
 	GroupName  string           // Filter by allowed group name (fuzzy match)
 	Attributes map[int64]string // Custom attribute filters: attributeID -> value
 	// IncludeSubscriptions controls whether ListWithFilters should load active subscriptions.
