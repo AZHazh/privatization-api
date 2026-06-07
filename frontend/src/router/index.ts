@@ -12,6 +12,7 @@ import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveDocumentTitle } from './title'
+import { canAccessAdminPath, firstAllowedAdminPath } from '@/utils/adminPermissions'
 
 /**
  * Route definitions with lazy loading
@@ -375,7 +376,10 @@ const routes: RouteRecordRaw[] = [
   // ==================== Admin Routes ====================
   {
     path: '/admin',
-    redirect: '/admin/dashboard'
+    redirect: () => {
+      const authStore = useAuthStore()
+      return authStore.isAdmin ? '/admin/dashboard' : firstAllowedAdminPath(authStore.user?.operator_pages)
+    }
   },
   {
     path: '/admin/dashboard',
@@ -384,6 +388,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'dashboard',
       title: 'Admin Dashboard',
       titleKey: 'admin.dashboard.title',
       descriptionKey: 'admin.dashboard.description'
@@ -396,6 +401,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'ops',
       title: 'Ops Monitoring',
       titleKey: 'admin.ops.title',
       descriptionKey: 'admin.ops.description'
@@ -408,9 +414,23 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'users',
       title: 'User Management',
       titleKey: 'admin.users.title',
       descriptionKey: 'admin.users.description'
+    }
+  },
+  {
+    path: '/admin/admin-accounts',
+    name: 'AdminAccountsManage',
+    component: () => import('@/views/admin/AdminAccountsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      adminOnly: true,
+      title: 'Admin Accounts',
+      titleKey: 'admin.adminAccounts.title',
+      descriptionKey: 'admin.adminAccounts.description'
     }
   },
   {
@@ -420,6 +440,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'groups',
       title: 'Group Management',
       titleKey: 'admin.groups.title',
       descriptionKey: 'admin.groups.description'
@@ -436,6 +457,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'channels_pricing',
       title: 'Channel Management',
       titleKey: 'admin.channels.title',
       descriptionKey: 'admin.channels.description'
@@ -448,6 +470,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'channels_monitor',
       title: 'Channel Monitor',
       titleKey: 'admin.channelMonitor.title',
       descriptionKey: 'admin.channelMonitor.description'
@@ -471,6 +494,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'subscriptions',
       title: 'Subscription Management',
       titleKey: 'admin.subscriptions.title',
       descriptionKey: 'admin.subscriptions.description'
@@ -483,6 +507,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'accounts',
       title: 'Account Management',
       titleKey: 'admin.accounts.title',
       descriptionKey: 'admin.accounts.description'
@@ -495,6 +520,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'announcements',
       title: 'Announcements',
       titleKey: 'admin.announcements.title',
       descriptionKey: 'admin.announcements.description'
@@ -507,6 +533,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'proxies',
       title: 'Proxy Management',
       titleKey: 'admin.proxies.title',
       descriptionKey: 'admin.proxies.description'
@@ -519,6 +546,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'redeem',
       title: 'Redeem Code Management',
       titleKey: 'admin.redeem.title',
       descriptionKey: 'admin.redeem.description'
@@ -531,6 +559,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'promo_codes',
       title: 'Promo Code Management',
       titleKey: 'admin.promo.title',
       descriptionKey: 'admin.promo.description'
@@ -543,6 +572,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'settings',
       title: 'System Settings',
       titleKey: 'admin.settings.title',
       descriptionKey: 'admin.settings.description'
@@ -555,6 +585,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'risk_control',
       title: 'Risk Control',
       titleKey: 'admin.riskControl.title',
       descriptionKey: 'admin.riskControl.description',
@@ -568,6 +599,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'usage',
       title: 'Usage Records',
       titleKey: 'admin.usage.title',
       descriptionKey: 'admin.usage.description'
@@ -584,6 +616,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'affiliates',
       title: 'Affiliate Invite Records',
       titleKey: 'nav.affiliateInviteRecords',
       descriptionKey: 'admin.affiliates.invitesDescription'
@@ -596,6 +629,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'affiliates',
       title: 'Affiliate Rebate Records',
       titleKey: 'nav.affiliateRebateRecords',
       descriptionKey: 'admin.affiliates.rebatesDescription'
@@ -608,6 +642,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'affiliates',
       title: 'Affiliate Transfer Records',
       titleKey: 'nav.affiliateTransferRecords',
       descriptionKey: 'admin.affiliates.transfersDescription'
@@ -623,6 +658,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'orders',
       title: 'Payment Dashboard',
       titleKey: 'nav.paymentDashboard',
       requiresPayment: true
@@ -635,6 +671,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'orders',
       title: 'Order Management',
       titleKey: 'nav.orderManagement',
       requiresPayment: true
@@ -647,6 +684,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'orders',
       title: 'Subscription Plans',
       titleKey: 'nav.paymentPlans',
       requiresPayment: true
@@ -770,12 +808,12 @@ router.beforeEach(async (to, _from, next) => {
     if (authStore.isAuthenticated && (to.path === '/login' || to.path === '/register')) {
       // In backend mode, non-admin users should NOT be redirected away from login
       // (they are blocked from all protected routes, so redirecting would cause a loop)
-      if (appStore.backendModeEnabled && !authStore.isAdmin) {
+      if (appStore.backendModeEnabled && !authStore.canAccessAdmin) {
         next()
         return
       }
       // Admin users go to admin dashboard, regular users go to user dashboard
-      next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+      next(authStore.canAccessAdmin ? (authStore.isAdmin ? '/admin/dashboard' : firstAllowedAdminPath(authStore.user?.operator_pages)) : '/dashboard')
       return
     }
     // Backend mode: block public pages for unauthenticated users (except login, key-usage, setup)
@@ -801,10 +839,21 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   // Check admin requirement
-  if (requiresAdmin && !authStore.isAdmin) {
-    // User is authenticated but not admin, redirect to user dashboard
+  if (requiresAdmin && !authStore.canAccessAdmin) {
+    // User is authenticated but cannot access backend, redirect to user dashboard
     next('/dashboard')
     return
+  }
+
+  if (requiresAdmin) {
+    if (to.meta.adminOnly && !authStore.isAdmin) {
+      next(firstAllowedAdminPath(authStore.user?.operator_pages))
+      return
+    }
+    if (!canAccessAdminPath(authStore.user?.role, authStore.user?.operator_pages, to.path)) {
+      next(firstAllowedAdminPath(authStore.user?.operator_pages))
+      return
+    }
   }
 
 
@@ -812,7 +861,7 @@ router.beforeEach(async (to, _from, next) => {
   if (to.meta.requiresPayment) {
     const paymentEnabled = appStore.cachedPublicSettings?.payment_enabled
     if (!paymentEnabled) {
-      next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+      next(authStore.canAccessAdmin ? (authStore.isAdmin ? '/admin/dashboard' : firstAllowedAdminPath(authStore.user?.operator_pages)) : '/dashboard')
       return
     }
   }
@@ -820,7 +869,7 @@ router.beforeEach(async (to, _from, next) => {
   if (to.meta.requiresRiskControl) {
     const riskControlEnabled = appStore.cachedPublicSettings?.risk_control_enabled === true
     if (!riskControlEnabled) {
-      next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
+      next(authStore.canAccessAdmin ? (authStore.isAdmin ? '/admin/settings' : firstAllowedAdminPath(authStore.user?.operator_pages)) : '/dashboard')
       return
     }
   }
@@ -837,14 +886,14 @@ router.beforeEach(async (to, _from, next) => {
 
     if (restrictedPaths.some((path) => to.path.startsWith(path))) {
       // 简易模式下访问受限页面,重定向到仪表板
-      next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+      next(authStore.canAccessAdmin ? (authStore.isAdmin ? '/admin/dashboard' : firstAllowedAdminPath(authStore.user?.operator_pages)) : '/dashboard')
       return
     }
   }
 
-  // Backend mode: admin gets full access, non-admin blocked
+  // Backend mode: admin/operator get backend access, regular users blocked
   if (appStore.backendModeEnabled) {
-    if (authStore.isAuthenticated && authStore.isAdmin) {
+    if (authStore.isAuthenticated && authStore.canAccessAdmin) {
       next()
       return
     }

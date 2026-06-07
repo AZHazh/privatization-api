@@ -358,6 +358,7 @@ export default {
     affiliateTransferRecords: '提取记录',
     profile: '个人资料',
     users: '用户管理',
+    adminAccounts: '后台账号',
     groups: '分组管理',
     channels: '渠道管理',
     availableChannels: '可用渠道',
@@ -1775,6 +1776,27 @@ export default {
         availableQuota: '可提余额',
         historyQuota: '历史返利'
       }
+    },
+
+    adminAccounts: {
+      title: '后台账号管理',
+      description: '创建管理员和运营账号，并配置运营可访问的后台页面',
+      create: '创建后台账号',
+      edit: '编辑后台账号',
+      searchPlaceholder: '搜索用户名或邮箱',
+      allRoles: '全部角色',
+      allStatus: '全部状态',
+      admin: '管理员',
+      operator: '运营',
+      role: '角色',
+      pages: '可访问页面',
+      createdFrom: '创建开始时间',
+      createdTo: '创建结束时间',
+      allPages: '全部页面',
+      allowedPages: '运营可访问页面',
+      noPages: '未授权页面',
+      empty: '暂无后台账号',
+      confirmDelete: '确定要删除该运营账号吗？'
     },
 
     // Users Management

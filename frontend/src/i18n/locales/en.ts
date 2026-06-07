@@ -358,6 +358,7 @@ export default {
     affiliateTransferRecords: 'Transfer Records',
     profile: 'Profile',
     users: 'Users',
+    adminAccounts: 'Admin Accounts',
     groups: 'Groups',
     channels: 'Channels',
     availableChannels: 'Available Channels',
@@ -1757,6 +1758,27 @@ export default {
     },
 
     // Users
+    adminAccounts: {
+      title: 'Admin Account Management',
+      description: 'Create administrator and operator accounts, and configure operator page access',
+      create: 'Create Account',
+      edit: 'Edit Account',
+      searchPlaceholder: 'Search username or email',
+      allRoles: 'All Roles',
+      allStatus: 'All Status',
+      admin: 'Admin',
+      operator: 'Operator',
+      role: 'Role',
+      pages: 'Pages',
+      createdFrom: 'Created from',
+      createdTo: 'Created to',
+      allPages: 'All pages',
+      allowedPages: 'Operator allowed pages',
+      noPages: 'No pages granted',
+      empty: 'No admin accounts',
+      confirmDelete: 'Delete this operator account?'
+    },
+
     users: {
       title: 'User Management',
       description: 'Manage users and their permissions',

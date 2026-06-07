@@ -20,6 +20,16 @@ declare module 'vue-router' {
     requiresAdmin?: boolean
 
     /**
+     * Stable page-level permission key for operator access.
+     */
+    adminPermission?: string
+
+    /**
+     * Requires the super-admin role, not just operator backend access.
+     */
+    adminOnly?: boolean
+
+    /**
      * Page title for this route
      */
     title?: string
