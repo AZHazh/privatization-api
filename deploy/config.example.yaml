@@ -1026,13 +1026,13 @@ settlement:
   enabled: true
   # Center service base URL, e.g. "https://settlement.example.com".
   # 中心端基础地址，例如 "https://settlement.example.com"。
-  center_url: "https://tiandouai.com"
+  center_url: ""
   # Unique site ID assigned by the center service.
   # 中心端分配的当前私有化站点唯一 ID。
-  site_id: "site_erlong_202604"
+  site_id: ""
   # Shared HMAC secret between this site and the center service.
   # 当前站点与中心端共享的 HMAC 密钥。
-  secret: "l7L47VAJ0QXeiW2XA3KlNZvjKu3KCej5Ihsv1hgHfly893JO"
+  secret: ""
   # Require a valid center-issued lease before forwarding requests upstream.
   # 请求上游前是否必须持有中心端发放的有效租约。
   lease_required: false
