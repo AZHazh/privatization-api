@@ -91,39 +91,6 @@ type settlementEventBatch struct {
 	Events []settlementUsageEvent `json:"events"`
 }
 
-type settlementEventHashPayload struct {
-	SiteID                string    `json:"site_id"`
-	Sequence              int64     `json:"sequence"`
-	PreviousHash          string    `json:"previous_hash"`
-	RequestID             string    `json:"request_id"`
-	AccountID             int64     `json:"account_id"`
-	AccountPlatform       string    `json:"account_platform"`
-	AccountType           string    `json:"account_type"`
-	Model                 string    `json:"model"`
-	RequestedModel        string    `json:"requested_model"`
-	UpstreamModel         string    `json:"upstream_model"`
-	InputTokens           int       `json:"input_tokens"`
-	OutputTokens          int       `json:"output_tokens"`
-	CacheCreationTokens   int       `json:"cache_creation_tokens"`
-	CacheReadTokens       int       `json:"cache_read_tokens"`
-	CacheCreation5mTokens int       `json:"cache_creation_5m_tokens"`
-	CacheCreation1hTokens int       `json:"cache_creation_1h_tokens"`
-	ImageOutputTokens     int       `json:"image_output_tokens"`
-	ImageCount            int       `json:"image_count"`
-	BillingMode           string    `json:"billing_mode"`
-	BillingType           int8      `json:"billing_type"`
-	TotalCost             float64   `json:"total_cost"`
-	ActualCost            float64   `json:"actual_cost"`
-	RateMultiplier        float64   `json:"rate_multiplier"`
-	AccountRateMultiplier float64   `json:"account_rate_multiplier"`
-	AccountStatsCost      float64   `json:"account_stats_cost"`
-	RequestType           string    `json:"request_type"`
-	Stream                bool      `json:"stream"`
-	OpenAIWSMode          bool      `json:"openai_ws_mode"`
-	CreatedAt             time.Time `json:"created_at"`
-	RecordedAt            time.Time `json:"recorded_at"`
-}
-
 type settlementBatchResponse struct {
 	Lease *settlementLease `json:"lease,omitempty"`
 }
@@ -473,43 +440,13 @@ func (s *SettlementService) signRequest(req *http.Request, payload []byte) {
 }
 
 func (s *SettlementService) hashEvent(event settlementUsageEvent) (string, error) {
-	payload := settlementEventHashPayload{
-		SiteID:                event.SiteID,
-		Sequence:              event.Sequence,
-		PreviousHash:          event.PreviousHash,
-		RequestID:             event.RequestID,
-		AccountID:             event.AccountID,
-		AccountPlatform:       event.AccountPlatform,
-		AccountType:           event.AccountType,
-		Model:                 event.Model,
-		RequestedModel:        event.RequestedModel,
-		UpstreamModel:         derefString(event.UpstreamModel),
-		InputTokens:           event.InputTokens,
-		OutputTokens:          event.OutputTokens,
-		CacheCreationTokens:   event.CacheCreationTokens,
-		CacheReadTokens:       event.CacheReadTokens,
-		CacheCreation5mTokens: event.CacheCreation5mTokens,
-		CacheCreation1hTokens: event.CacheCreation1hTokens,
-		ImageOutputTokens:     event.ImageOutputTokens,
-		ImageCount:            event.ImageCount,
-		BillingMode:           derefString(event.BillingMode),
-		BillingType:           event.BillingType,
-		TotalCost:             event.TotalCost,
-		ActualCost:            event.ActualCost,
-		RateMultiplier:        event.RateMultiplier,
-		AccountRateMultiplier: derefFloat64(event.AccountRateMultiplier),
-		AccountStatsCost:      derefFloat64(event.AccountStatsCost),
-		RequestType:           event.RequestType,
-		Stream:                event.Stream,
-		OpenAIWSMode:          event.OpenAIWSMode,
-		CreatedAt:             event.CreatedAt,
-		RecordedAt:            event.RecordedAt,
-	}
-	body, err := json.Marshal(payload)
+	event.EventHash = ""
+	event.Signature = ""
+	payload, err := json.Marshal(event)
 	if err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256(body)
+	sum := sha256.Sum256(payload)
 	return hex.EncodeToString(sum[:]), nil
 }
 
@@ -517,20 +454,6 @@ func (s *SettlementService) hmacHex(data string) string {
 	mac := hmac.New(sha256.New, []byte(s.cfg.Secret))
 	_, _ = mac.Write([]byte(data))
 	return hex.EncodeToString(mac.Sum(nil))
-}
-
-func derefString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
-}
-
-func derefFloat64(value *float64) float64 {
-	if value == nil {
-		return 0
-	}
-	return *value
 }
 
 func checkSettlementLeaseForGateway(ctx context.Context, c interface{ JSON(int, interface{}) }, cfg *config.Config) error {
