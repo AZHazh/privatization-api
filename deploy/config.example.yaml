@@ -1017,45 +1017,6 @@ billing:
   user_platform_quota_cache_ttl_seconds: 86400
 
 # =============================================================================
-# Settlement Reporting (Optional)
-# 结算上报与租约门禁（可选，默认关闭）
-# =============================================================================
-settlement:
-  # Enable settlement reporting. It stays inactive until center_url/site_id/secret are all configured.
-  # 是否启用结算上报。center_url/site_id/secret 未填完整时会自动保持空操作。
-  enabled: true
-  # Center service base URL, e.g. "https://settlement.example.com".
-  # 中心端基础地址，例如 "https://settlement.example.com"。
-  center_url: ""
-  # Unique site ID assigned by the center service.
-  # 中心端分配的当前私有化站点唯一 ID。
-  site_id: ""
-  # Shared HMAC secret between this site and the center service.
-  # 当前站点与中心端共享的 HMAC 密钥。
-  secret: ""
-  # Require a valid center-issued lease before forwarding requests upstream.
-  # 请求上游前是否必须持有中心端发放的有效租约。
-  lease_required: false
-  # Allow requests when center/lease check fails. Recommended false for production reconciliation.
-  # 中心端不可用或租约检查失败时是否放行。生产对账建议 false。
-  fail_open: false
-  # Event upload batch size.
-  # 事件批量上报条数。
-  batch_size: 200
-  # Periodic flush interval in seconds.
-  # 定时上报间隔（秒）。
-  flush_interval_seconds: 10
-  # HTTP request timeout in seconds.
-  # 上报/续租 HTTP 超时（秒）。
-  timeout_seconds: 10
-  # In-memory event queue limit. When full, new events are dropped and logged.
-  # 内存事件队列上限；满队列时会丢弃新事件并记录日志。
-  max_queue_size: 10000
-  # Renew lease when local remaining lease balance is below this USD amount.
-  # 本地租约余额低于该金额时触发续租。
-  lease_renew_threshold_usd: 0.5
-
-# =============================================================================
 # Turnstile Configuration
 # Turnstile 人机验证配置
 # =============================================================================

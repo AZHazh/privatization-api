@@ -2367,9 +2367,6 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	originalModel := reqModel
 
 	if account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
-		if err := checkSettlementLeaseForGateway(ctx, c, s.cfg); err != nil {
-			return nil, err
-		}
 		return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body)
 	}
 
@@ -2716,10 +2713,6 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		imageBillingModel = imageCfg.Model
 		imageSizeTier = imageCfg.SizeTier
 		imageInputSize = imageCfg.InputSize
-	}
-
-	if err := checkSettlementLeaseForGateway(ctx, c, s.cfg); err != nil {
-		return nil, err
 	}
 
 	// Get access token
@@ -3231,10 +3224,6 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 				streamWarnLogger.Warn("OpenAI passthrough 检测到超时相关请求头，将按配置过滤以降低断流风险")
 			}
 		}
-	}
-
-	if err := checkSettlementLeaseForGateway(ctx, c, s.cfg); err != nil {
-		return nil, err
 	}
 
 	// Get access token
@@ -5819,7 +5808,6 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
-		enqueueSettlementUsage(ctx, s.cfg, usageLog, account)
 		logger.LegacyPrintf("service.openai_gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
 		return nil
@@ -5845,7 +5833,6 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		return billingErr
 	}
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
-	enqueueSettlementUsage(ctx, s.cfg, usageLog, account)
 
 	return nil
 }

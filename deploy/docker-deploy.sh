@@ -192,26 +192,6 @@ main() {
     set_env_value "TOTP_ENCRYPTION_KEY" "${TOTP_ENCRYPTION_KEY}"
     set_env_value "POSTGRES_PASSWORD" "${POSTGRES_PASSWORD}"
 
-    # Optional settlement reporting. Values are written only when explicitly
-    # provided by the caller so existing deployments keep the default disabled
-    # behavior from .env.example.
-    for key in \
-        SETTLEMENT_ENABLED \
-        SETTLEMENT_CENTER_URL \
-        SETTLEMENT_SITE_ID \
-        SETTLEMENT_SECRET \
-        SETTLEMENT_LEASE_REQUIRED \
-        SETTLEMENT_FAIL_OPEN \
-        SETTLEMENT_BATCH_SIZE \
-        SETTLEMENT_FLUSH_INTERVAL_SECONDS \
-        SETTLEMENT_TIMEOUT_SECONDS \
-        SETTLEMENT_MAX_QUEUE_SIZE \
-        SETTLEMENT_LEASE_RENEW_THRESHOLD_USD; do
-        if [ -n "${!key+x}" ]; then
-            set_env_value "${key}" "${!key}"
-        fi
-    done
-
     # Create data directories
     print_info "Creating data directories..."
     mkdir -p data postgres_data redis_data
