@@ -55,7 +55,7 @@ type settlementUsageEvent struct {
 	SiteID                string     `json:"site_id"`
 	Sequence              int64      `json:"sequence"`
 	PreviousHash          string     `json:"previous_hash"`
-	EventHash             string     `json:"event_hash,omitempty"`
+	EventHash             string     `json:"event_hash"`
 	RequestID             string     `json:"request_id"`
 	AccountID             int64      `json:"account_id"`
 	AccountPlatform       string     `json:"account_platform,omitempty"`
@@ -83,7 +83,7 @@ type settlementUsageEvent struct {
 	OpenAIWSMode          bool       `json:"openai_ws_mode"`
 	CreatedAt             time.Time  `json:"created_at"`
 	RecordedAt            time.Time  `json:"recorded_at"`
-	Signature             string     `json:"signature,omitempty"`
+	Signature             string     `json:"signature"`
 }
 
 type settlementEventBatch struct {
